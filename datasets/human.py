@@ -2,16 +2,16 @@
 Author: Shengyu Huang
 Last modified: 30.11.2020
 """
-
+import json
 import os, sys, glob, torch
 import numpy as np
 from scipy.spatial.transform import Rotation
 from torch.utils.data import Dataset
 import open3d as o3d
-from lib.benchmark_utils import to_o3d_pcd, to_tsfm, get_correspondences
+from lib.benchmark_utils import to_o3d_pcd, to_tsfm, get_correspondences, to_tensor
 
 
-class IndoorDataset(Dataset):
+class HumanHeadDataset(Dataset):
     """
     Load subsampled coordinates, relative rotation and translation
     Output(torch.Tensor):
@@ -21,9 +21,9 @@ class IndoorDataset(Dataset):
         trans:          [3,1]
     """
 
-    def __init__(self, infos, config, data_augmentation=True):
-        super(IndoorDataset, self).__init__()
-        self.infos = infos
+    def __init__(self, sources, config, data_augmentation=True):
+        super(HumanHeadDataset, self).__init__()
+        self.sources = sources
         self.base_dir = config.root
         self.overlap_radius = config.overlap_radius
         self.data_augmentation = data_augmentation
@@ -31,29 +31,38 @@ class IndoorDataset(Dataset):
 
         self.rot_factor = 1.
         self.augment_noise = config.augment_noise
-        self.max_points = 30000
+        self.max_points = 600
 
     def __len__(self):
-        return len(self.infos['rot'])
+        return len(self.sources)
 
     def __getitem__(self, item):
         # get transformation
-        rot = self.infos['rot'][item]
-        trans = self.infos['trans'][item]
+        rot = np.asarray(self.sources[item]['pose'])[:3, :3]
+        trans = np.asarray(self.sources[item]['pose'])[:3, 3]
 
         # get pointcloud
-        src_path = os.path.join(self.base_dir, self.infos['src'][item])
-        tgt_path = os.path.join(self.base_dir, self.infos['tgt'][item])
-        src_pcd = torch.load(src_path)
-        tgt_pcd = torch.load(tgt_path)
+        src_path = os.path.join(self.base_dir, self.sources[item]['pc_model'][1:])
+        tgt_path = os.path.join(self.base_dir, self.sources[item]['pc_artificial'][1:])
+        # src_pcd = torch.load(src_path)
+        # tgt_pcd = torch.load(tgt_path)
+
+        src_pcd = o3d.io.read_point_cloud(src_path)
+        src_pcd.voxel_down_sample(2)
+        src_pcd = np.asarray(src_pcd.points)
+        tgt_pcd = np.asarray(o3d.io.read_point_cloud(tgt_path).points)
 
         # if we get too many points, we do some downsampling
         if (src_pcd.shape[0] > self.max_points):
+            # print('     oversize: ', src_pcd.shape[0])
             idx = np.random.permutation(src_pcd.shape[0])[:self.max_points]
             src_pcd = src_pcd[idx]
+            # print('     down to: ', src_pcd.shape[0])
         if (tgt_pcd.shape[0] > self.max_points):
+            # print('     oversize: ', tgt_pcd.shape[0])
             idx = np.random.permutation(tgt_pcd.shape[0])[:self.max_points]
             tgt_pcd = tgt_pcd[idx]
+            # print('     down to: ', tgt_pcd.shape[0])
 
         # add gaussian noise
         if self.data_augmentation:

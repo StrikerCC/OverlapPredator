@@ -2,9 +2,10 @@ snapshot/
 scripts.py
 *.so
 *.zip
-data/
+data_raw/
 weights/
 __pycache__/
 build/
 dump/
 .idea/
+/data

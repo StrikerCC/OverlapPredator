@@ -107,8 +107,8 @@ def prepare_dataset_artificial(voxel_size):
     # target = o3d.io.read_point_cloud("./data/ICP/cloud_bin_1.pcd")
     orientation = np.deg2rad([0.0, 0.0, 80.0])
     translation = np.array([0.13, 0.0, 0.0])
-    source, target = prepare_source_and_target_rigid_3d('../data/stanford/bunny.pcd',
-    # source, target = prepare_source_and_target_rigid_3d('./data/cloud_0.pcd',
+    source, target = prepare_source_and_target_rigid_3d('../data_raw/stanford/bunny.pcd',
+                                                        # source, target = prepare_source_and_target_rigid_3d('./data/cloud_0.pcd',
                                                         noise_amp=0.001,
                                                         n_random=100,
                                                         orientation=orientation,

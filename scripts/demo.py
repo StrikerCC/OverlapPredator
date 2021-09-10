@@ -14,9 +14,10 @@ import open3d as o3d
 cwd = os.getcwd()
 sys.path.append(cwd)
 from datasets.indoor import IndoorDataset
+from datasets.human import HumanHeadDataset
 from datasets.dataloader import get_dataloader
 from models.architectures import KPFCNN
-from lib.utils import load_obj, setup_seed,natural_key, load_config
+from lib.utils import load_obj, setup_seed,natural_key, load_config, load_json
 from lib.benchmark_utils import ransac_pose_estimation, to_o3d_pcd, get_blue, get_yellow, to_tensor
 from lib.trainer import Trainer
 from lib.loss import MetricLoss
@@ -33,8 +34,8 @@ class ThreeDMatchDemo(Dataset):
         rot:            [3,3]
         trans:          [3,1]
     """
-    def __init__(self,config, src_path, tgt_path):
-        super(ThreeDMatchDemo,self).__init__()
+    def __init__(self, config, src_path, tgt_path):
+        super(ThreeDMatchDemo, self).__init__()
         self.config = config
         self.src_path = src_path
         self.tgt_path = tgt_path
@@ -42,19 +43,18 @@ class ThreeDMatchDemo(Dataset):
     def __len__(self):
         return 1
 
-    def __getitem__(self,item): 
+    def __getitem__(self, item):
         # get pointcloud
-        src_pcd = torch.load(self.src_path).astype(np.float32)
-        tgt_pcd = torch.load(self.tgt_path).astype(np.float32)   
-        
-        
-        #src_pcd = o3d.io.read_point_cloud(self.src_path)
-        #tgt_pcd = o3d.io.read_point_cloud(self.tgt_path)
-        #src_pcd = src_pcd.voxel_down_sample(0.025)
-        #tgt_pcd = tgt_pcd.voxel_down_sample(0.025)
-        #src_pcd = np.array(src_pcd.points).astype(np.float32)
-        #tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
-
+        if config.dataset == 'human_head':
+            src_pcd = o3d.io.read_point_cloud(self.src_path)
+            tgt_pcd = o3d.io.read_point_cloud(self.tgt_path)
+            src_pcd = src_pcd.voxel_down_sample(15)
+            tgt_pcd = tgt_pcd.voxel_down_sample(15)
+            src_pcd = np.array(src_pcd.points).astype(np.float32)
+            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
+        elif config.dataset == 'indoor':
+            src_pcd = torch.load(self.src_path).astype(np.float32)
+            tgt_pcd = torch.load(self.tgt_path).astype(np.float32)
 
         src_feats=np.ones_like(src_pcd[:,:1]).astype(np.float32)
         tgt_feats=np.ones_like(tgt_pcd[:,:1]).astype(np.float32)
@@ -65,6 +65,7 @@ class ThreeDMatchDemo(Dataset):
         correspondences = torch.ones(1,2).long()
 
         return src_pcd,tgt_pcd,src_feats,tgt_feats,rot,trans, correspondences, src_pcd, tgt_pcd, torch.ones(1)
+
 
 def lighter(color, percent):
     '''assumes color is rgb between (0, 0, 0) and (1,1,1)'''
@@ -220,20 +221,28 @@ if __name__ == '__main__':
     config.model = KPFCNN(config).to(config.device)
     
     # create dataset and dataloader
-    info_train = load_obj(config.train_info)
-    train_set = IndoorDataset(info_train,config,data_augmentation=True)
+    info_train, train_set = None, None
+    if config.dataset == 'human_head':
+        info_train = load_json(config.train_info)
+        train_set = HumanHeadDataset(info_train, config, data_augmentation=True)
+    elif config.dataset == 'indoor':
+        info_train = load_obj(config.train_info)
+        train_set = IndoorDataset(info_train, config, data_augmentation=True)
+    else:
+        raise NotImplementedError
+
     demo_set = ThreeDMatchDemo(config, config.src_pcd, config.tgt_pcd)
 
     _, neighborhood_limits = get_dataloader(dataset=train_set,
-                                        batch_size=config.batch_size,
-                                        shuffle=True,
-                                        num_workers=config.num_workers,
-                                        )
+                                            batch_size=config.batch_size,
+                                            shuffle=True,
+                                            num_workers=config.num_workers,
+                                            )
     demo_loader, _ = get_dataloader(dataset=demo_set,
-                                        batch_size=config.batch_size,
-                                        shuffle=False,
-                                        num_workers=1,
-                                        neighborhood_limits=neighborhood_limits)
+                                    batch_size=config.batch_size,
+                                    shuffle=False,
+                                    num_workers=1,
+                                    neighborhood_limits=neighborhood_limits)
 
     # load pretrained weights
     assert config.pretrain != None

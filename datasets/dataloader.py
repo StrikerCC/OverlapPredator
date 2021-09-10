@@ -5,13 +5,15 @@ import torch
 import cpp_wrappers.cpp_subsampling.grid_subsampling as cpp_subsampling
 import cpp_wrappers.cpp_neighbors.radius_neighbors as cpp_neighbors
 from lib.timer import Timer
-from lib.utils import load_obj, natural_key
+from lib.utils import load_obj, natural_key, load_json
+from datasets.human import HumanHeadDataset
 from datasets.indoor import IndoorDataset
 from datasets.kitti import KITTIDataset
 from datasets.modelnet import get_train_datasets, get_test_datasets
 
 
-def batch_grid_subsampling_kpconv(points, batches_len, features=None, labels=None, sampleDl=0.1, max_p=0, verbose=0, random_grid_orient=True):
+def batch_grid_subsampling_kpconv(points, batches_len, features=None, labels=None, sampleDl=0.1, max_p=0, verbose=0,
+                                  random_grid_orient=True):
     """
     CPP wrapper for a grid subsampling (method = barycenter for points and features)
     """
@@ -43,13 +45,15 @@ def batch_grid_subsampling_kpconv(points, batches_len, features=None, labels=Non
 
     else:
         s_points, s_len, s_features, s_labels = cpp_subsampling.subsample_batch(points,
-                                                                              batches_len,
-                                                                              features=features,
-                                                                              classes=labels,
-                                                                              sampleDl=sampleDl,
-                                                                              max_p=max_p,
-                                                                              verbose=verbose)
-        return torch.from_numpy(s_points), torch.from_numpy(s_len), torch.from_numpy(s_features), torch.from_numpy(s_labels)
+                                                                                batches_len,
+                                                                                features=features,
+                                                                                classes=labels,
+                                                                                sampleDl=sampleDl,
+                                                                                max_p=max_p,
+                                                                                verbose=verbose)
+        return torch.from_numpy(s_points), torch.from_numpy(s_len), torch.from_numpy(s_features), torch.from_numpy(
+            s_labels)
+
 
 def batch_neighbors_kpconv(queries, supports, q_batches, s_batches, radius, max_neighbors):
     """
@@ -67,21 +71,24 @@ def batch_neighbors_kpconv(queries, supports, q_batches, s_batches, radius, max_
         return torch.from_numpy(neighbors[:, :max_neighbors])
     else:
         return torch.from_numpy(neighbors)
-    
+
+
 def collate_fn_descriptor(list_data, config, neighborhood_limits):
     batched_points_list = []
     batched_features_list = []
     batched_lengths_list = []
     assert len(list_data) == 1
-    
-    for ind, (src_pcd,tgt_pcd,src_feats,tgt_feats,rot,trans,matching_inds, src_pcd_raw, tgt_pcd_raw, sample) in enumerate(list_data):
+
+    for ind, (
+    src_pcd, tgt_pcd, src_feats, tgt_feats, rot, trans, matching_inds, src_pcd_raw, tgt_pcd_raw, sample) in enumerate(
+            list_data):
         batched_points_list.append(src_pcd)
         batched_points_list.append(tgt_pcd)
         batched_features_list.append(src_feats)
         batched_features_list.append(tgt_feats)
         batched_lengths_list.append(len(src_pcd))
         batched_lengths_list.append(len(tgt_pcd))
-    
+
     batched_features = torch.from_numpy(np.concatenate(batched_features_list, axis=0))
     batched_points = torch.from_numpy(np.concatenate(batched_points_list, axis=0))
     batched_lengths = torch.from_numpy(np.array(batched_lengths_list)).int()
@@ -121,7 +128,8 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
                 r = r_normal * config.deform_radius / config.conv_radius
             else:
                 r = r_normal
-            conv_i = batch_neighbors_kpconv(batched_points, batched_points, batched_lengths, batched_lengths, r, neighborhood_limits[layer])
+            conv_i = batch_neighbors_kpconv(batched_points, batched_points, batched_lengths, batched_lengths, r,
+                                            neighborhood_limits[layer])
 
         else:
             # This layer only perform pooling, no neighbors required
@@ -146,10 +154,12 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
                 r = r_normal
 
             # Subsample indices
-            pool_i = batch_neighbors_kpconv(pool_p, batched_points, pool_b, batched_lengths, r, neighborhood_limits[layer])
-            
+            pool_i = batch_neighbors_kpconv(pool_p, batched_points, pool_b, batched_lengths, r,
+                                            neighborhood_limits[layer])
+
             # Upsample indices (with the radius of the next layer to keep wanted density)
-            up_i = batch_neighbors_kpconv(batched_points, pool_p, batched_lengths, pool_b, 2 * r, neighborhood_limits[layer])
+            up_i = batch_neighbors_kpconv(batched_points, pool_p, batched_lengths, pool_b, 2 * r,
+                                          neighborhood_limits[layer])
 
         else:
             # No pooling in the end of this layer, no pooling indices required
@@ -194,6 +204,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
 
     return dict_inputs
 
+
 def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_threshold=2000):
     timer = Timer()
     last_display = timer.total_time
@@ -208,7 +219,8 @@ def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_thr
         batched_input = collate_fn([dataset[i]], config, neighborhood_limits=[hist_n] * 5)
 
         # update histogram
-        counts = [torch.sum(neighb_mat < neighb_mat.shape[0], dim=1).numpy() for neighb_mat in batched_input['neighbors']]
+        counts = [torch.sum(neighb_mat < neighb_mat.shape[0], dim=1).numpy() for neighb_mat in
+                  batched_input['neighbors']]
         hists = [np.bincount(c, minlength=hist_n)[:hist_n] for c in counts]
         neighb_hists += np.vstack(hists)
         timer.toc()
@@ -228,27 +240,35 @@ def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_thr
 
     return neighborhood_limits
 
+
 def get_datasets(config):
-    if(config.dataset=='indoor'):
+    if config.dataset == 'human_head':
+        info_train = load_json(config.train_info)
+        info_val = load_json(config.val_info)
+        info_benchmark = load_json(config.test_info)
+
+        train_set = HumanHeadDataset(info_train, config, data_augmentation=True)
+        val_set = HumanHeadDataset(info_val, config, data_augmentation=True)
+        benchmark_set = HumanHeadDataset(info_benchmark, config, data_augmentation=True)
+    elif config.dataset == 'indoor':
         info_train = load_obj(config.train_info)
         info_val = load_obj(config.val_info)
         info_benchmark = load_obj(f'configs/indoor/{config.benchmark}.pkl')
 
-        train_set = IndoorDataset(info_train,config,data_augmentation=True)
-        val_set = IndoorDataset(info_val,config,data_augmentation=False)
-        benchmark_set = IndoorDataset(info_benchmark,config, data_augmentation=False)
-    elif(config.dataset == 'kitti'):
-        train_set = KITTIDataset(config,'train',data_augmentation=True)
-        val_set = KITTIDataset(config,'val',data_augmentation=False)
-        benchmark_set = KITTIDataset(config, 'test',data_augmentation=False)
-    elif(config.dataset=='modelnet'):
+        train_set = IndoorDataset(info_train, config, data_augmentation=True)
+        val_set = IndoorDataset(info_val, config, data_augmentation=False)
+        benchmark_set = IndoorDataset(info_benchmark, config, data_augmentation=False)
+    elif config.dataset == 'kitti':
+        train_set = KITTIDataset(config, 'train', data_augmentation=True)
+        val_set = KITTIDataset(config, 'val', data_augmentation=False)
+        benchmark_set = KITTIDataset(config, 'test', data_augmentation=False)
+    elif (config.dataset == 'modelnet'):
         train_set, val_set = get_train_datasets(config)
         benchmark_set = get_test_datasets(config)
     else:
         raise NotImplementedError
 
     return train_set, val_set, benchmark_set
-
 
 
 def get_dataloader(dataset, batch_size=1, num_workers=4, shuffle=True, neighborhood_limits=None):

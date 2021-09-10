@@ -21,17 +21,19 @@ from data_faker.vis import draw_registration_result
 
 
 class Dataset:
-    def __init__(self):
+    def __init__(self, num_move):
+        assert isinstance(num_move, int)
+
         self.meter_2_mm = True
         self.flag_show = False
 
         self.size = 220
-        self.voxel_sizes = (0.1, 0.2)
+        self.voxel_sizes = (3, 5)
         # self.angles_cutoff_along = ()
         self.angles_cutoff_along = (0.0,)
         self.plane_sizes = (0.8,)
         self.Gaussian_sigma_factor = (0.02, 0.04, 0.06)
-        self.n_move = 12
+        self.n_move = num_move
         self.translation_rg_factor = (-2.1, 2.1)
         self.rotation_reg = (-180.0, 180.0)
         self.num_random = (100,)
@@ -96,10 +98,16 @@ class Dataset:
                                 'strands_mounting_unit', 'burti', 'skull', 'yellow_toy_car', 'fruchtmolke',
                                 'canon_camera_bag', 'dragon_recon', 'happy_recon'}
 
-        self.data_info = {'pc_model': None, 'pc_from': None, 'pc_artificial': None, 'instance': None,
+        self.info_source = {'pc_model': None, 'pc_from': None, 'pc_artificial': None, 'instance': None,
                           'scale': 1, 'unit': '', 'voxel_size': None, 'angle': None, 'pose': [], 'tf': [],
                           'sigma': None, 'outliers': None, 'plane': None}
 
+        self.info_pkl = {
+            'src': [],
+            'tgt': [],
+            'rot': [],
+            'trans': []
+        }
         # def read_instance(self, dir_path):
     #     self.dir_path_read = dir_path
     #     # instances = os.listdir(dir_path)
@@ -121,14 +129,29 @@ class ExeThread(threading.Thread):
 
 
 class Writer(Dataset):
-    def __init__(self):
-        Dataset.__init__(self)
+    def __init__(self, num_move):
+        Dataset.__init__(self, num_move)
         self.model_file_paths = []
         self.datas_file_paths = []
         self.poses_file_paths = []
 
         self.filename_len = 6
         self.meter_2_mm = True
+    # def prepare_pkl(self, sample_dir_path, root_dir):
+    #     train_relative_dir = '/train/'
+    #     test_relative_dir = '/test/'
+    #
+    #     for i_source in range(len(self)):
+    #         source = self.get(i_source)
+    #         assert isinstance(source['pc_artificial'], str)
+    #         assert isinstance(source['pc_model'], str)
+    #
+    #         if not isinstance(source['pose'], np.ndarray):
+    #             pose = np.asarray(source['pose'])
+    #             source_pkl['rot'].append(pose[:3, :3])
+    #             source_pkl['trans'].append(pose[:3, 3])
+    #             source_pkl['src'].append(source['pc_artificial'])
+    #             source_pkl['tgt'].append(source['pc_model'])
 
     def write(self, sample_dir_path, output_dir_path, json_path, num_thread=4):
         # setup output path and file
@@ -196,6 +219,9 @@ class Writer(Dataset):
         for id_thread in range(num_thread):
             exe_thread_list[id_thread].join()
 
+        # make data for train and test
+        # self.prepare_pkl(sample_dir_path=sample_dir_path, root_dir='../data/human_data_tiny/')
+
         # make json file to retrieve data
         sources_record = sources  # self.__format_json(sources)
         with open(json_path, 'w') as f:
@@ -254,7 +280,7 @@ class Writer(Dataset):
                 elif 'human' in data_file_path:
                     tf_init[:3, :3] = t3d.euler.euler2mat(*np.deg2rad([180.0, 0.0, 0.0]))
                     tf_init[:3, 3] = 0
-                source = copy.deepcopy(self.data_info)
+                source = copy.deepcopy(self.info_source)
                 source['pc_model'] = model_file_path
                 source['pc_from'] = data_file_path
                 source['instance'] = instance
@@ -269,6 +295,7 @@ class Writer(Dataset):
 
                 sources.append(source)
             # print(file_path, "\n    max bounds for geometry coordinates", pc.get_max_bound())
+        assert len(sources) > 0, 'source ' + str(instances) + str(model_file_paths) + str(datas_file_paths) + ' doesn\'t have pc'
         return sources
 
     def __load_pc(self, source, flag_show=False):
@@ -494,8 +521,8 @@ class Writer(Dataset):
 
 
 class Reader(Dataset):
-    def __init__(self):
-        Dataset.__init__(self)
+    def __init__(self, num_move=0):
+        Dataset.__init__(self, num_move)
         self.meter_2_mm = False
         self.sources = None
 
@@ -515,9 +542,11 @@ class Reader(Dataset):
         return len(self.sources) if self.sources else 0
 
     def __getitem__(self, item):
-        if not self.sources: return None
+        if not self.sources:
+            return None
         source = copy.deepcopy(self.sources[item])
         # process data
+
         if isinstance(source['pc_artificial'], str):
             source['pc_artificial'] = o3.io.read_point_cloud(source['pc_artificial'])  # read artificial pc
         if isinstance(source['pc_model'], str):
@@ -529,38 +558,44 @@ class Reader(Dataset):
             source['pose'] = np.asarray(source['pose'])
         return source
 
+    def get(self, item):
+        if not self.sources: return None
+        source = copy.deepcopy(self.sources[item])
+        return source
+
 
 def main():
     write = True
+    # write_pkl = True
 
-    sample_path = './data/TUW_TUW_models/TUW_models/'
+    sample_path = '../data_raw/'
     # output_path = './data/TUW_TUW_data/'
     # output_path = 'data/TUW_TUW_data_uniform_size/'
-    output_path = 'data/TUW_TUW_data_small/'
-    output_json_path = output_path + 'data.json'
+    output_paths = {'train': [6, '../data/human_data_tiny/train/'],
+                    'val':    [1, '../data/human_data_tiny/val/'],
+                    'test':   [2, '../data/human_data_tiny/test/']}
+    for mode in output_paths.keys():
+        num_move, output_path = output_paths[mode]
+        output_json_path = output_path + 'data.json'
+        ds = Writer(num_move)
+        # ds.read_instance(data_path)
+        if write:
+            ds.write(sample_path, output_path, output_json_path)
 
-    sample_path = './data/'
-    output_path = './data/human_data/'
-    output_json_path = output_path + 'data.json'
+        dl = Reader()
+        dl.read(output_json_path)
+        # dl.prepare_pkl(root_dir='../data/human_data_tiny')
 
-    ds = Writer()
-    # ds.read_instance(data_path)
-    if write:
-        ds.write(sample_path, output_path, output_json_path)
-
-    dl = Reader()
-    dl.read(output_json_path)
-
-    i = -10
-    data = dl[i]
-    pc_model = data['pc_model']
-    pc_artificial = data['pc_artificial']
-    tf = data['pose']
-    pc_model_ = copy.deepcopy(pc_model)
-    pc_model_.transform(tf)
-    draw_registration_result(source=pc_artificial)
-    draw_registration_result(source=pc_artificial, target=pc_model_)
-    print(dl[i])
+        i = -10
+        data = dl[i]
+        pc_model = data['pc_model']
+        pc_artificial = data['pc_artificial']
+        tf = data['pose']
+        pc_model_ = copy.deepcopy(pc_model)
+        pc_model_.transform(tf)
+        draw_registration_result(source=pc_artificial)
+        draw_registration_result(source=pc_artificial, target=pc_model_)
+        print(dl[i])
 
     # for i in range(len(dl)):
     #     data = dl[i]

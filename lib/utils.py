@@ -43,6 +43,10 @@ def load_obj(path):
     with open(path, 'rb') as f:
         return pickle.load(f)
 
+def load_json(data_json_path):
+    with open(data_json_path, 'r') as f:
+        return json.load(f)
+
 def load_config(path):
     """
     Loads config file:
