@@ -10,7 +10,8 @@ from datasets.human import HumanHeadDataset
 from datasets.indoor import IndoorDataset
 from datasets.kitti import KITTIDataset
 from datasets.modelnet import get_train_datasets, get_test_datasets
-
+from lib.benchmark_utils import to_o3d_pcd, to_tsfm
+from lib.vis import draw_registration_result
 
 def batch_grid_subsampling_kpconv(points, batches_len, features=None, labels=None, sampleDl=0.1, max_p=0, verbose=0,
                                   random_grid_orient=True):
@@ -250,6 +251,17 @@ def get_datasets(config):
         train_set = HumanHeadDataset(info_train, config, data_augmentation=True)
         val_set = HumanHeadDataset(info_val, config, data_augmentation=True)
         benchmark_set = HumanHeadDataset(info_benchmark, config, data_augmentation=True)
+
+        '''vis to confirm pc data'''
+        index_to_show = np.arange(0, len(train_set), int(len(train_set)/5))
+        for i in index_to_show:
+            data_list = train_set[i]
+            src_pcd, tgt_pcd, src_feats, tgt_feats, rot, trans, correspondences, src_pcd, tgt_pcd, _ = data_list
+
+            src_o3d, tgt_o3d = to_o3d_pcd(src_pcd), to_o3d_pcd(tgt_pcd)
+            tf_gt = to_tsfm(rot, trans)
+            draw_registration_result(source=src_o3d, target=tgt_o3d, transformation=tf_gt)
+
     elif config.dataset == 'indoor':
         info_train = load_obj(config.train_info)
         info_val = load_obj(config.val_info)

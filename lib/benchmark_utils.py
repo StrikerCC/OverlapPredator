@@ -4,7 +4,7 @@ Scripts for pairwise registration using different sampling methods
 Author: Shengyu Huang
 Last modified: 30.11.2020
 """
-
+import copy
 import os,re,sys,json,yaml,random, glob, argparse, torch, pickle
 from tqdm import tqdm
 import numpy as np
@@ -77,6 +77,8 @@ def to_tensor(array):
     """
     Convert array to tensor
     """
+    print(array)
+    array = copy.copy(array)
     if(not isinstance(array,torch.Tensor)):
         return torch.from_numpy(array).float()
     else:

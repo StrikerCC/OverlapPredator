@@ -5,7 +5,8 @@ misc:
   verbose: True
   verbose_freq: 1000
   snapshot_freq: 1
-  pretrain: 'weights/indoor.pth'
+  pretrain: 'snapshot/indoor/checkpoints/model_best_recall.pth'
+#  pretrain: 'weights/indoor.pth'
 
 
 model:
@@ -72,5 +73,7 @@ dataset:
 demo:
   src_pcd: assets/cloud_bin_21.pth
   tgt_pcd: assets/cloud_bin_34.pth
+#  src_pcd: data/human_data_tiny/train/000000.pcd
+#  tgt_pcd: data_raw/human_models/head_models/model_women/3D_model.pcd
   n_points: 1000
 

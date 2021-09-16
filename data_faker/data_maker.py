@@ -21,8 +21,7 @@ from data_faker.vis import draw_registration_result
 
 
 class Dataset:
-    def __init__(self, num_move):
-        assert isinstance(num_move, int)
+    def __init__(self):
 
         self.meter_2_mm = True
         self.flag_show = False
@@ -31,9 +30,9 @@ class Dataset:
         self.voxel_sizes = (3, 5)
         # self.angles_cutoff_along = ()
         self.angles_cutoff_along = (0.0,)
-        self.plane_sizes = (0.8,)
-        self.Gaussian_sigma_factor = (0.02, 0.04, 0.06)
-        self.n_move = num_move
+        self.plane_sizes = (0.1,)
+        self.Gaussian_sigma_factor = (0.02, )
+        self.n_move = 2
         self.translation_rg_factor = (-2.1, 2.1)
         self.rotation_reg = (-180.0, 180.0)
         self.num_random = (100,)
@@ -130,7 +129,10 @@ class ExeThread(threading.Thread):
 
 class Writer(Dataset):
     def __init__(self, num_move):
-        Dataset.__init__(self, num_move)
+        assert isinstance(num_move, int)
+        Dataset.__init__(self)
+        Dataset.num_move = num_move
+
         self.model_file_paths = []
         self.datas_file_paths = []
         self.poses_file_paths = []
@@ -521,8 +523,8 @@ class Writer(Dataset):
 
 
 class Reader(Dataset):
-    def __init__(self, num_move=0):
-        Dataset.__init__(self, num_move)
+    def __init__(self):
+        Dataset.__init__(self)
         self.meter_2_mm = False
         self.sources = None
 
@@ -569,11 +571,10 @@ def main():
     # write_pkl = True
 
     sample_path = '../data_raw/'
-    # output_path = './data/TUW_TUW_data/'
-    # output_path = 'data/TUW_TUW_data_uniform_size/'
     output_paths = {'train': [6, '../data/human_data_tiny/train/'],
                     'val':    [1, '../data/human_data_tiny/val/'],
                     'test':   [2, '../data/human_data_tiny/test/']}
+
     for mode in output_paths.keys():
         num_move, output_path = output_paths[mode]
         output_json_path = output_path + 'data.json'

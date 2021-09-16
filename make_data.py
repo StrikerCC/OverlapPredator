@@ -8,7 +8,7 @@
 import copy
 
 from data_faker.multiview_merge import combine_pcs
-from data_faker.dataset import Writer, Reader
+from data_faker.data_maker import Writer, Reader
 from data_faker.vis import draw_registration_result
 
 

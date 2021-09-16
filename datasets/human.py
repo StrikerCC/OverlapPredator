@@ -31,15 +31,17 @@ class HumanHeadDataset(Dataset):
 
         self.rot_factor = 1.
         self.augment_noise = config.augment_noise
-        self.max_points = 600
+        self.max_points = 1500
 
     def __len__(self):
-        return len(self.sources)
+        # return len(self.sources)
+        return 5
 
     def __getitem__(self, item):
         # get transformation
         rot = np.asarray(self.sources[item]['pose'])[:3, :3]
         trans = np.asarray(self.sources[item]['pose'])[:3, 3]
+        tsfm = to_tsfm(rot, trans)
 
         # get pointcloud
         src_path = os.path.join(self.base_dir, self.sources[item]['pc_model'][1:])
@@ -48,23 +50,35 @@ class HumanHeadDataset(Dataset):
         # tgt_pcd = torch.load(tgt_path)
 
         src_pcd = o3d.io.read_point_cloud(src_path)
-        src_pcd.voxel_down_sample(2)
+        src_pcd = src_pcd.voxel_down_sample(self.config.voxel_down)
         src_pcd = np.asarray(src_pcd.points)
-        tgt_pcd = np.asarray(o3d.io.read_point_cloud(tgt_path).points)
+        # src_pcd /= 100.0
 
-        # if we get too many points, we do some downsampling
-        if (src_pcd.shape[0] > self.max_points):
-            # print('     oversize: ', src_pcd.shape[0])
-            idx = np.random.permutation(src_pcd.shape[0])[:self.max_points]
-            src_pcd = src_pcd[idx]
-            # print('     down to: ', src_pcd.shape[0])
-        if (tgt_pcd.shape[0] > self.max_points):
-            # print('     oversize: ', tgt_pcd.shape[0])
-            idx = np.random.permutation(tgt_pcd.shape[0])[:self.max_points]
-            tgt_pcd = tgt_pcd[idx]
-            # print('     down to: ', tgt_pcd.shape[0])
+        tgt_pcd = o3d.io.read_point_cloud(tgt_path)
+        tgt_pcd = tgt_pcd.voxel_down_sample(self.config.voxel_down)
+        tgt_pcd = np.asarray(tgt_pcd.points)
+        # tgt_pcd /= 100.0
+
+        # Get matches
+        # matching_inds = get_correspondences(tgt_pcd, tgt_pcd, tsfm, self.config.voxel_down*1.5)
+
+        # if (matching_inds.size(0) < self.max_corr and self.split == 'train'):
+        #     return self.__getitem__(np.random.choice(len(self.files), 1)[0])
+        #
+        # # if we get too many points, we do some downsampling
+        # if (src_pcd.shape[0] > self.max_points):
+        #     # print('     oversize: ', src_pcd.shape[0])
+        #     idx = np.random.permutation(src_pcd.shape[0])[:self.max_points]
+        #     src_pcd = src_pcd[idx, :]
+        #     # print('     down to: ', src_pcd.shape[0])
+        # if (tgt_pcd.shape[0] > self.max_points):
+        #     # print('     oversize: ', tgt_pcd.shape[0])
+        #     idx = np.random.permutation(tgt_pcd.shape[0])[:self.max_points]
+        #     tgt_pcd = tgt_pcd[idx, :]
+        #     # print('     down to: ', tgt_pcd.shape[0])
 
         # add gaussian noise
+        self.data_augmentation = False
         if self.data_augmentation:
             # rotate the point cloud
             euler_ab = np.random.rand(3) * np.pi * 2 / self.rot_factor  # anglez, angley, anglex

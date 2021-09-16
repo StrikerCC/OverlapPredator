@@ -9,6 +9,9 @@ from tqdm import tqdm
 import torch.nn.functional as F
 import gc
 
+import open3d as o3d
+from lib.benchmark_utils import to_o3d_pcd
+
 
 class Trainer(object):
     def __init__(self, args):
@@ -135,6 +138,11 @@ class Trainer(object):
 
             c_loss.backward()
 
+            # vis to confirm
+            # src_pcd_o3 = to_o3d_pcd(src_pcd)
+            # src_tgt_o3 = to_o3d_pcd(tgt_pcd)
+            # o3d.visualization.draw_geometries([src_pcd_o3, src_tgt_o3])
+
         else:
             self.model.eval()
             with torch.no_grad():
@@ -230,6 +238,7 @@ class Trainer(object):
     def train(self):
         print('start training...')
         for epoch in range(self.start_epoch, self.max_epoch):
+            print('<<<<<<<<<<<<<<<epoch>>>>>>>>>>>>>>>>>>>', epoch)
             self.inference_one_epoch(epoch, 'train')
             self.scheduler.step()
 

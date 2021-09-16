@@ -48,10 +48,14 @@ class ThreeDMatchDemo(Dataset):
         if config.dataset == 'human_head':
             src_pcd = o3d.io.read_point_cloud(self.src_path)
             tgt_pcd = o3d.io.read_point_cloud(self.tgt_path)
-            src_pcd = src_pcd.voxel_down_sample(15)
-            tgt_pcd = tgt_pcd.voxel_down_sample(15)
-            src_pcd = np.array(src_pcd.points).astype(np.float32)
-            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
+            src_pcd = src_pcd.voxel_down_sample(10)
+            tgt_pcd = tgt_pcd.voxel_down_sample(10)
+            print('Source point cloud', src_pcd)
+            print('Target point cloud', tgt_pcd)
+            src_pcd = np.array(src_pcd.points).astype(np.float32) / 100.0
+            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32) / 100.0
+            # src_pcd = np.array(src_pcd.points).astype(np.float32)
+            # tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
         elif config.dataset == 'indoor':
             src_pcd = torch.load(self.src_path).astype(np.float32)
             tgt_pcd = torch.load(self.tgt_path).astype(np.float32)
@@ -63,6 +67,11 @@ class ThreeDMatchDemo(Dataset):
         rot = np.eye(3).astype(np.float32)
         trans = np.ones((3,1)).astype(np.float32)
         correspondences = torch.ones(1,2).long()
+
+        # vis to confirm
+        src_pcd_o3 = to_o3d_pcd(src_pcd)
+        src_tgt_o3 = to_o3d_pcd(tgt_pcd)
+        o3d.visualization.draw_geometries([src_pcd_o3, src_tgt_o3])
 
         return src_pcd,tgt_pcd,src_feats,tgt_feats,rot,trans, correspondences, src_pcd, tgt_pcd, torch.ones(1)
 
