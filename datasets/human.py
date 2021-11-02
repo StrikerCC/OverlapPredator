@@ -2,16 +2,18 @@
 Author: Shengyu Huang
 Last modified: 30.11.2020
 """
+import copy
 import json
 import os, sys, glob, torch
 import numpy as np
+import open3d.cpu.pybind.visualization
 from scipy.spatial.transform import Rotation
 from torch.utils.data import Dataset
 import open3d as o3d
 from lib.benchmark_utils import to_o3d_pcd, to_tsfm, get_correspondences, to_tensor
 
 
-class HumanHeadDataset(Dataset):
+class HumanDataset(Dataset):
     """
     Load subsampled coordinates, relative rotation and translation
     Output(torch.Tensor):
@@ -22,7 +24,7 @@ class HumanHeadDataset(Dataset):
     """
 
     def __init__(self, sources, config, data_augmentation=True):
-        super(HumanHeadDataset, self).__init__()
+        super(HumanDataset, self).__init__()
         self.sources = sources
         self.base_dir = config.root
         self.overlap_radius = config.overlap_radius
@@ -31,7 +33,7 @@ class HumanHeadDataset(Dataset):
 
         self.rot_factor = 1.
         self.augment_noise = config.augment_noise
-        self.max_points = 1500
+        self.max_points = 600
 
     def __len__(self):
         # return len(self.sources)
@@ -39,66 +41,43 @@ class HumanHeadDataset(Dataset):
 
     def __getitem__(self, item):
         # get transformation
-        rot = np.asarray(self.sources[item]['pose'])[:3, :3]
-        trans = np.asarray(self.sources[item]['pose'])[:3, 3]
-        tsfm = to_tsfm(rot, trans)
+        tf_src_2_tgt = np.asarray(self.sources[item]['tf_src_2_tgt']).astype(np.float32)
+        rot = tf_src_2_tgt[:3, :3]
+        trans = tf_src_2_tgt[:3, 3]
+        tsfm = tf_src_2_tgt
 
         # get pointcloud
-        src_path = os.path.join(self.base_dir, self.sources[item]['pc_model'][1:])
-        tgt_path = os.path.join(self.base_dir, self.sources[item]['pc_artificial'][1:])
+        # src_path = os.path.join(self.base_dir, self.sources[item]['pc_src'][1:]) if self.sources[item]['pc_src'][0] == '.' else os.path.join(self.base_dir, self.sources[item]['pc_src'])
+        # tgt_path = os.path.join(self.base_dir, self.sources[item]['pc_tgt'][1:]) if self.sources[item]['pc_tgt'][0] == '.' else os.path.join(self.base_dir, self.sources[item]['pc_tgt'])
+
+        src_path = self.base_dir + self.sources[item]['pc_src'][1:] if self.sources[item]['pc_src'][0] == '.' else self.base_dir + self.sources[item]['pc_src']
+        tgt_path = self.base_dir + self.sources[item]['pc_tgt'][1:] if self.sources[item]['pc_tgt'][0] == '.' else self.base_dir + self.sources[item]['pc_tgt']
+
         # src_pcd = torch.load(src_path)
         # tgt_pcd = torch.load(tgt_path)
 
         src_pcd = o3d.io.read_point_cloud(src_path)
         src_pcd = src_pcd.voxel_down_sample(self.config.voxel_down)
-        src_pcd = np.asarray(src_pcd.points)
-        # src_pcd /= 100.0
 
         tgt_pcd = o3d.io.read_point_cloud(tgt_path)
         tgt_pcd = tgt_pcd.voxel_down_sample(self.config.voxel_down)
+
+        # '''vis to confirm'''
+        # if item in {0, 1, 2}:
+        #     src_pcd_temp = copy.deepcopy(src_pcd)
+        #     src_pcd_temp.transform(tf_src_2_tgt)
+        #     o3d.visualization.draw_geometries([src_pcd_temp, tgt_pcd])
+        #     del src_pcd_temp
+
+        src_pcd = np.asarray(src_pcd.points)
         tgt_pcd = np.asarray(tgt_pcd.points)
-        # tgt_pcd /= 100.0
-
-        # Get matches
-        # matching_inds = get_correspondences(tgt_pcd, tgt_pcd, tsfm, self.config.voxel_down*1.5)
-
-        # if (matching_inds.size(0) < self.max_corr and self.split == 'train'):
-        #     return self.__getitem__(np.random.choice(len(self.files), 1)[0])
-        #
-        # # if we get too many points, we do some downsampling
-        # if (src_pcd.shape[0] > self.max_points):
-        #     # print('     oversize: ', src_pcd.shape[0])
-        #     idx = np.random.permutation(src_pcd.shape[0])[:self.max_points]
-        #     src_pcd = src_pcd[idx, :]
-        #     # print('     down to: ', src_pcd.shape[0])
-        # if (tgt_pcd.shape[0] > self.max_points):
-        #     # print('     oversize: ', tgt_pcd.shape[0])
-        #     idx = np.random.permutation(tgt_pcd.shape[0])[:self.max_points]
-        #     tgt_pcd = tgt_pcd[idx, :]
-        #     # print('     down to: ', tgt_pcd.shape[0])
-
-        # add gaussian noise
-        self.data_augmentation = False
-        if self.data_augmentation:
-            # rotate the point cloud
-            euler_ab = np.random.rand(3) * np.pi * 2 / self.rot_factor  # anglez, angley, anglex
-            rot_ab = Rotation.from_euler('zyx', euler_ab).as_matrix()
-            if (np.random.rand(1)[0] > 0.5):
-                src_pcd = np.matmul(rot_ab, src_pcd.T).T
-                rot = np.matmul(rot, rot_ab.T)
-            else:
-                tgt_pcd = np.matmul(rot_ab, tgt_pcd.T).T
-                rot = np.matmul(rot_ab, rot)
-                trans = np.matmul(rot_ab, trans)
-
-            src_pcd += (np.random.rand(src_pcd.shape[0], 3) - 0.5) * self.augment_noise
-            tgt_pcd += (np.random.rand(tgt_pcd.shape[0], 3) - 0.5) * self.augment_noise
+        np.random.shuffle(src_pcd)
+        np.random.shuffle(tgt_pcd)
 
         if (trans.ndim == 1):
             trans = trans[:, None]
 
         # get correspondence at fine level
-        tsfm = to_tsfm(rot, trans)
         correspondences = get_correspondences(to_o3d_pcd(src_pcd), to_o3d_pcd(tgt_pcd), tsfm, self.overlap_radius)
 
         src_feats = np.ones_like(src_pcd[:, :1]).astype(np.float32)

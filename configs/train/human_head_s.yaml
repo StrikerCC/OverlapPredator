@@ -8,7 +8,6 @@ misc:
   pretrain: ''
 #  pretrain: 'weights/indoor.pth'
 
-
 model:
   num_layers: 4 
   in_points_dim: 3
@@ -17,8 +16,10 @@ model:
   first_subsampling_dl: 0.025
   in_feats_dim: 1
   conv_radius: 2.5
-  deform_radius: 5.0 
+
+  deform_radius: 5.0
   num_kernel_points: 15
+
   KP_extent: 2.0
   KP_influence: linear
   aggregation_mode: sum 
@@ -71,6 +72,8 @@ dataset:
   train_info: data/human_data_tiny/train/data.json
   val_info: data/human_data_tiny/val/data.json
   test_info: data//human_data_tiny/test/data.json
+
+
 demo:
   src_pcd: assets/cloud_bin_21.pth
   tgt_pcd: assets/cloud_bin_34.pth

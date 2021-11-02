@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 import datasets.transforms as Transforms
 import common.math.se3 as se3
 from lib.benchmark_utils import get_correspondences, to_o3d_pcd, to_tsfm
-  
+
 
 def get_train_datasets(args: argparse.Namespace):
     train_categories, val_categories = None, None
@@ -147,7 +147,6 @@ class ModelNetHdf(Dataset):
         self.n_in_feats = args.in_feats_dim
         self.overlap_radius = args.overlap_radius
 
-
         if not os.path.exists(os.path.join(root)):
             self._download_dataset(root)
 
@@ -177,24 +176,25 @@ class ModelNetHdf(Dataset):
         if self._transform:
             sample = self._transform(sample)
         # transform to our format
-        src_pcd = sample['points_src'][:,:3]
-        tgt_pcd = sample['points_ref'][:,:3]
-        rot = sample['transform_gt'][:,:3]
-        trans = sample['transform_gt'][:,3][:,None]
-        matching_inds = get_correspondences(to_o3d_pcd(src_pcd), to_o3d_pcd(tgt_pcd),to_tsfm(rot,trans),self.overlap_radius)
-        
-        if(self.n_in_feats == 1):
-            src_feats=np.ones_like(src_pcd[:,:1]).astype(np.float32)
-            tgt_feats=np.ones_like(tgt_pcd[:,:1]).astype(np.float32)
-        elif(self.n_in_feats == 3):
+        src_pcd = sample['points_src'][:, :3]
+        tgt_pcd = sample['points_ref'][:, :3]
+        rot = sample['transform_gt'][:, :3]
+        trans = sample['transform_gt'][:, 3][:, None]
+        matching_inds = get_correspondences(to_o3d_pcd(src_pcd), to_o3d_pcd(tgt_pcd), to_tsfm(rot, trans),
+                                            self.overlap_radius)
+
+        if self.n_in_feats == 1:
+            src_feats = np.ones_like(src_pcd[:, :1]).astype(np.float32)
+            tgt_feats = np.ones_like(tgt_pcd[:, :1]).astype(np.float32)
+        elif self.n_in_feats == 3:
             src_feats = src_pcd.astype(np.float32)
             tgt_feats = tgt_pcd.astype(np.float32)
 
-        for k,v in sample.items():
-            if k not in ['deterministic','label','idx']:
+        for k, v in sample.items():
+            if k not in ['deterministic', 'label', 'idx']:
                 sample[k] = torch.from_numpy(v).unsqueeze(0)
 
-        return src_pcd,tgt_pcd,src_feats,tgt_feats,rot,trans, matching_inds, src_pcd, tgt_pcd, sample
+        return src_pcd, tgt_pcd, src_feats, tgt_feats, rot, trans, matching_inds, src_pcd, tgt_pcd, sample
 
     def __len__(self):
         return self._data.shape[0]

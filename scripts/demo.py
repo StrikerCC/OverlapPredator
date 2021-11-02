@@ -14,7 +14,7 @@ import open3d as o3d
 cwd = os.getcwd()
 sys.path.append(cwd)
 from datasets.indoor import IndoorDataset
-from datasets.human import HumanHeadDataset
+from datasets.human import HumanDataset
 from datasets.dataloader import get_dataloader
 from models.architectures import KPFCNN
 from lib.utils import load_obj, setup_seed,natural_key, load_config, load_json
@@ -233,7 +233,7 @@ if __name__ == '__main__':
     info_train, train_set = None, None
     if config.dataset == 'human_head':
         info_train = load_json(config.train_info)
-        train_set = HumanHeadDataset(info_train, config, data_augmentation=True)
+        train_set = HumanDataset(info_train, config, data_augmentation=True)
     elif config.dataset == 'indoor':
         info_train = load_obj(config.train_info)
         train_set = IndoorDataset(info_train, config, data_augmentation=True)

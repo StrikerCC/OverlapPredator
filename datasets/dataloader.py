@@ -6,7 +6,7 @@ import cpp_wrappers.cpp_subsampling.grid_subsampling as cpp_subsampling
 import cpp_wrappers.cpp_neighbors.radius_neighbors as cpp_neighbors
 from lib.timer import Timer
 from lib.utils import load_obj, natural_key, load_json
-from datasets.human import HumanHeadDataset
+from datasets.human import HumanDataset
 from datasets.indoor import IndoorDataset
 from datasets.kitti import KITTIDataset
 from datasets.modelnet import get_train_datasets, get_test_datasets
@@ -78,7 +78,7 @@ def collate_fn_descriptor(list_data, config, neighborhood_limits):
     batched_points_list = []
     batched_features_list = []
     batched_lengths_list = []
-    assert len(list_data) == 1
+    assert len(list_data) == 1  # stick with batch 1
 
     for ind, (
     src_pcd, tgt_pcd, src_feats, tgt_feats, rot, trans, matching_inds, src_pcd_raw, tgt_pcd_raw, sample) in enumerate(
@@ -243,24 +243,25 @@ def calibrate_neighbors(dataset, config, collate_fn, keep_ratio=0.8, samples_thr
 
 
 def get_datasets(config):
-    if config.dataset == 'human_head':
-        info_train = load_json(config.train_info)
-        info_val = load_json(config.val_info)
-        info_benchmark = load_json(config.test_info)
 
-        train_set = HumanHeadDataset(info_train, config, data_augmentation=True)
-        val_set = HumanHeadDataset(info_val, config, data_augmentation=True)
-        benchmark_set = HumanHeadDataset(info_benchmark, config, data_augmentation=True)
+    if config.dataset == 'human':
+        info_train = load_json(config.train_info)[:-5]
+        info_val = load_json(config.train_info)[-5:]
+        info_benchmark = load_json(config.train_info)[-5:]
+
+        train_set = HumanDataset(info_train, config, data_augmentation=True)
+        val_set = HumanDataset(info_val, config, data_augmentation=True)
+        benchmark_set = HumanDataset(info_benchmark, config, data_augmentation=True)
 
         '''vis to confirm pc data'''
-        index_to_show = np.arange(0, len(train_set), int(len(train_set)/5))
+        index_to_show = np.arange(0, len(train_set), int(len(train_set)/2))
         for i in index_to_show:
             data_list = train_set[i]
             src_pcd, tgt_pcd, src_feats, tgt_feats, rot, trans, correspondences, src_pcd, tgt_pcd, _ = data_list
 
             src_o3d, tgt_o3d = to_o3d_pcd(src_pcd), to_o3d_pcd(tgt_pcd)
             tf_gt = to_tsfm(rot, trans)
-            draw_registration_result(source=src_o3d, target=tgt_o3d, transformation=tf_gt)
+            draw_registration_result(source=src_o3d, target=tgt_o3d, transformation=tf_gt, window_name=str(i) + "-th data")
 
     elif config.dataset == 'indoor':
         info_train = load_obj(config.train_info)

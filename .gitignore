@@ -9,3 +9,7 @@ build/
 dump/
 .idea/
 /data
+/models
+/lib
+/kernels
+/common

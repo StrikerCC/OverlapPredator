@@ -1,5 +1,5 @@
 misc:
-  exp_dir: modelnet
+  exp_dir: human
   mode: train
   gpu_mode: True
   verbose: True
@@ -7,8 +7,9 @@ misc:
   snapshot_freq: 1
   pretrain: ''
 
+
 model:
-  num_layers: 3 
+  num_layers: 4
   in_points_dim: 3
   first_feats_dim: 512
   final_feats_dim: 96
@@ -40,7 +41,7 @@ loss:
   log_scale: 64
   pos_radius: 0.018
   safe_radius: 0.06
-  overlap_radius: 0.04
+  overlap_radius: 4
   matchability_radius: 0.04 
   w_circle_loss: 1.0
   w_overlap_loss: 1.0
@@ -49,7 +50,8 @@ loss:
 
 optimiser:
   optimizer: SGD
-  max_epoch: 200
+#  max_epoch: 200
+  max_epoch: 6
   lr: 0.01
   weight_decay: 0.000001
   momentum: 0.98
@@ -59,20 +61,25 @@ optimiser:
   iter_size: 4
 
 dataset:
-  dataset: modelnet
-  benchmark: modelnet
-  root: data/modelnet40_ply_hdf5_2048
+  dataset: human
+  benchmark: human
+  root: /home/cheng/proj/3d/TEASER-plusplus/
   batch_size: 1 
-  num_workers: 4 
+  num_workers: 12
   augment_noise: 0.005
-  train_categoryfile: configs/modelnet/modelnet40_half1.txt
-  val_categoryfile: configs/modelnet/modelnet40_half1.txt
-  test_categoryfile: configs/modelnet/modelnet40_half2.txt
-  partial: [0.7,0.7]
-  num_points: 1024
-  noise_type: crop
-  rot_mag: 45.0
-  trans_mag: 0.5 
-  dataset_type: modelnet_hdf
+  voxel_down: 4
+  train_info: data/model_man10/data.json
+#  val_info: data/model_man10/data.json
+#  test_categoryfile: configs/human/modelnet40_half2.txt
+#  partial: [0.7,0.7]
+#  num_points: 1024
+#  noise_type: crop
+#  rot_mag: 45.0
+#  trans_mag: 0.5
+#  dataset_type: modelnet_hdf
 
+demo:
+  src_pcd: data/head/.pth
+  tgt_pcd: data/head/.pth
+  n_points: 1000
 
