@@ -1,9 +1,10 @@
 from lib.trainer import Trainer
-import os, torch
+import os, torch, copy
 from tqdm import tqdm
 import numpy as np
 from lib.benchmark_utils import ransac_pose_estimation, random_sample, get_angle_deviation, to_o3d_pcd, to_array
 import open3d as o3d
+from scripts.demo import draw_registration_result
 
 # Modelnet part
 from common.math_torch import se3
@@ -13,7 +14,7 @@ from collections import defaultdict
 import coloredlogs
 
 
-class HuamnHeadTester(Trainer):
+class HuamnTester(Trainer):
     """
     3DMatch tester
     """
@@ -47,7 +48,35 @@ class HuamnHeadTester(Trainer):
                 correspondence = inputs['correspondences']
 
                 src_pcd, tgt_pcd = pcd[:len_src], pcd[len_src:]
-                src_feats, tgt_feats = feats[:len_src], feats[len_src:]
+                src_raw = copy.deepcopy(src_pcd)
+                tgt_raw = copy.deepcopy(tgt_pcd)
+                src_feats, tgt_feats = feats[:len_src].detach().cpu(), feats[len_src:].detach().cpu()
+                src_overlap, src_saliency = scores_overlap[:len_src].detach().cpu(), scores_saliency[
+                                                                                     :len_src].detach().cpu()
+                tgt_overlap, tgt_saliency = scores_overlap[len_src:].detach().cpu(), scores_saliency[
+                                                                                     len_src:].detach().cpu()
+
+                #####################################
+                # do probabilistic sampling guided by the score
+                src_scores = src_overlap * src_saliency
+                tgt_scores = tgt_overlap * tgt_saliency
+
+                # if (src_pcd.size(0) > config.n_points):
+                #     idx = np.arange(src_pcd.size(0))
+                #     probs = (src_scores / src_scores.sum()).numpy().flatten()
+                #     idx = np.random.choice(idx, size=config.n_points, replace=False, p=probs)
+                #     src_pcd, src_feats = src_pcd[idx], src_feats[idx]
+                # if (tgt_pcd.size(0) > config.n_points):
+                #     idx = np.arange(tgt_pcd.size(0))
+                #     probs = (tgt_scores / tgt_scores.sum()).numpy().flatten()
+                #     idx = np.random.choice(idx, size=config.n_points, replace=False, p=probs)
+                #     tgt_pcd, tgt_feats = tgt_pcd[idx], tgt_feats[idx]
+
+                ########################################
+                # run ransac and draw registration
+                tsfm = ransac_pose_estimation(src_pcd, tgt_pcd, src_feats, tgt_feats, mutual=False)
+                draw_registration_result(src_raw, tgt_raw, src_overlap, tgt_overlap, src_saliency, tgt_saliency, tsfm)
+
 
                 data = dict()
                 data['pcd'] = pcd.cpu()
@@ -450,8 +479,8 @@ class ModelnetTester(Trainer):
 
 
 def get_trainer(config):
-    if (config.dataset == 'human_head'):
-        return HuamnHeadTester(config)
+    if (config.dataset == 'human'):
+        return HuamnTester(config)
     elif (config.dataset == 'indoor'):
         return IndoorTester(config)
     elif (config.dataset == 'kitti'):
