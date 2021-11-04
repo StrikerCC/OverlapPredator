@@ -3,8 +3,6 @@ architectures = dict()
 architectures['human'] = [
     'simple',
     'resnetb',
-    'resnetb_strided',
-    'resnetb',
     'resnetb',
     'resnetb_strided',
     'resnetb',
@@ -14,9 +12,9 @@ architectures['human'] = [
     'resnetb',
     'nearest_upsample',
     'unary',
-    'nearest_upsample',
     'unary',
     'nearest_upsample',
+    'unary',
     'last_unary'
 ]
 

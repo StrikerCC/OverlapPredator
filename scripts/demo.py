@@ -19,6 +19,9 @@ from datasets.dataloader import get_dataloader
 from models.architectures import KPFCNN
 from lib.utils import load_obj, setup_seed,natural_key, load_config, load_json
 from lib.benchmark_utils import ransac_pose_estimation, to_o3d_pcd, get_blue, get_yellow, to_tensor
+
+from configs.models import architectures
+
 from lib.trainer import Trainer
 from lib.loss import MetricLoss
 import shutil
@@ -45,20 +48,24 @@ class ThreeDMatchDemo(Dataset):
 
     def __getitem__(self, item):
         # get pointcloud
-        if config.dataset == 'human_head':
+        src_pcd, tgt_pcd = None, None
+
+        if config.dataset == 'human':
             src_pcd = o3d.io.read_point_cloud(self.src_path)
             tgt_pcd = o3d.io.read_point_cloud(self.tgt_path)
-            src_pcd = src_pcd.voxel_down_sample(10)
-            tgt_pcd = tgt_pcd.voxel_down_sample(10)
+            src_pcd = src_pcd.voxel_down_sample(6)
+            tgt_pcd = tgt_pcd.voxel_down_sample(6)
             print('Source point cloud', src_pcd)
             print('Target point cloud', tgt_pcd)
-            src_pcd = np.array(src_pcd.points).astype(np.float32) / 100.0
-            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32) / 100.0
+            src_pcd = np.array(src_pcd.points).astype(np.float32) / 1000.0
+            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32) / 1000.0
             # src_pcd = np.array(src_pcd.points).astype(np.float32)
             # tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
         elif config.dataset == 'indoor':
             src_pcd = torch.load(self.src_path).astype(np.float32)
             tgt_pcd = torch.load(self.tgt_path).astype(np.float32)
+        else:
+            raise NotImplementedError
 
         src_feats=np.ones_like(src_pcd[:,:1]).astype(np.float32)
         tgt_feats=np.ones_like(tgt_pcd[:,:1]).astype(np.float32)
@@ -214,24 +221,25 @@ if __name__ == '__main__':
         config.device = torch.device('cpu')
     
     # model initialization
-    config.architecture = [
-        'simple',
-        'resnetb',
-    ]
-    for i in range(config.num_layers-1):
-        config.architecture.append('resnetb_strided')
-        config.architecture.append('resnetb')
-        config.architecture.append('resnetb')
-    for i in range(config.num_layers-2):
-        config.architecture.append('nearest_upsample')
-        config.architecture.append('unary')
-    config.architecture.append('nearest_upsample')
-    config.architecture.append('last_unary')
+    # config.architecture = [
+    #     'simple',
+    #     'resnetb',
+    # ]
+    # for i in range(config.num_layers-1):
+    #     config.architecture.append('resnetb_strided')
+    #     config.architecture.append('resnetb')
+    #     config.architecture.append('resnetb')
+    # for i in range(config.num_layers-2):
+    #     config.architecture.append('nearest_upsample')
+    #     config.architecture.append('unary')
+    # config.architecture.append('nearest_upsample')
+    # config.architecture.append('last_unary')
+    config.architecture = architectures[config.dataset]
     config.model = KPFCNN(config).to(config.device)
     
     # create dataset and dataloader
     info_train, train_set = None, None
-    if config.dataset == 'human_head':
+    if config.dataset == 'human':
         info_train = load_json(config.train_info)
         train_set = HumanDataset(info_train, config, data_augmentation=True)
     elif config.dataset == 'indoor':

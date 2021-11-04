@@ -33,18 +33,18 @@ class HumanDataset(Dataset):
 
         self.rot_factor = 1.
         self.augment_noise = config.augment_noise
-        self.max_points = 600
+        self.max_points = 11600
 
     def __len__(self):
         # return len(self.sources)
-        return 5
+        return len(self.sources)
 
     def __getitem__(self, item):
         # get transformation
         tf_src_2_tgt = np.asarray(self.sources[item]['tf_src_2_tgt']).astype(np.float32)
         rot = tf_src_2_tgt[:3, :3]
-        trans = tf_src_2_tgt[:3, 3]
-        tsfm = tf_src_2_tgt
+        trans = tf_src_2_tgt[:3, 3] / 1000.0
+        tsfm = to_tsfm(rot, trans)
 
         # get pointcloud
         # src_path = os.path.join(self.base_dir, self.sources[item]['pc_src'][1:]) if self.sources[item]['pc_src'][0] == '.' else os.path.join(self.base_dir, self.sources[item]['pc_src'])
@@ -69,8 +69,8 @@ class HumanDataset(Dataset):
         #     o3d.visualization.draw_geometries([src_pcd_temp, tgt_pcd])
         #     del src_pcd_temp
 
-        src_pcd = np.asarray(src_pcd.points)
-        tgt_pcd = np.asarray(tgt_pcd.points)
+        src_pcd = np.asarray(src_pcd.points) / 1000.0
+        tgt_pcd = np.asarray(tgt_pcd.points) / 1000.0
         np.random.shuffle(src_pcd)
         np.random.shuffle(tgt_pcd)
 

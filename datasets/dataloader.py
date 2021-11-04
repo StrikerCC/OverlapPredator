@@ -247,7 +247,7 @@ def get_datasets(config):
     if config.dataset == 'human':
         info_train = load_json(config.train_info)[:-5]
         info_val = load_json(config.train_info)[-5:]
-        info_benchmark = load_json(config.train_info)[-5:]
+        info_benchmark = load_json(config.train_info)[::80]
 
         train_set = HumanDataset(info_train, config, data_augmentation=True)
         val_set = HumanDataset(info_val, config, data_augmentation=True)

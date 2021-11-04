@@ -10,6 +10,14 @@ dump/
 .idea/
 /data
 /models
-/lib
+
+/lib/benchmark.py
+/lib/benchmark_utils.py
+/lib/loss.py
+/lib/ply.py
+/lib/timer.py
+/lib/utils.py
+/lib/vis.py
+
 /kernels
 /common

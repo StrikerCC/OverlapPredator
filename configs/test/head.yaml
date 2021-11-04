@@ -1,11 +1,11 @@
 misc:
   exp_dir: human
-  mode: train
+  mode: test
   gpu_mode: True
   verbose: True
   verbose_freq: 1000
   snapshot_freq: 1
-  pretrain: ''
+  pretrain: './snapshot/human/checkpoints/model_best_loss.pth'
 
 
 model:
@@ -69,7 +69,7 @@ dataset:
   batch_size: 1 
   num_workers: 12
   augment_noise: 0.005
-  voxel_down: 10
+  voxel_down: 6
   train_info: data/model_man10/data.json
 #  val_info: data/model_man10/data.json
 #  test_categoryfile: configs/human/modelnet40_half2.txt
@@ -82,6 +82,6 @@ dataset:
 
 demo:
   src_pcd: /home/cheng_chen/3d_projects/Teaser-plusplus-testing/data/human_models/head_models/model_man/3D_model.pcd
-  tgt_pcd: /home/cheng_chen/3d_projects/Teaser-plusplus-testing/data/model_man10/009979.pcd
+  tgt_pcd: /home/cheng_chen/3d_projects/Teaser-plusplus-testing/data/model_man10/000009.pcd
   n_points: 1000
 
