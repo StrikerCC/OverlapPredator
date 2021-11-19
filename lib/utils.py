@@ -90,12 +90,12 @@ def square_distance(src, dst, normalised = False):
     """
     B, N, _ = src.shape
     _, M, _ = dst.shape
-    dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
+    dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))     # (B, N, M)
     if(normalised):
         dist += 2
     else:
-        dist += torch.sum(src ** 2, dim=-1)[:, :, None]
-        dist += torch.sum(dst ** 2, dim=-1)[:, None, :]
+        dist += torch.sum(src ** 2, dim=-1)[:, :, None]     # (B, N, M) + (B, N, 1)
+        dist += torch.sum(dst ** 2, dim=-1)[:, None, :]     # (B, N, M) + (B, 1, M)
 
     dist = torch.clamp(dist, min=1e-12, max=None)
     return dist

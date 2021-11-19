@@ -9,6 +9,9 @@ from lib.utils import square_distance
 def get_graph_feature(coords, feats, k=10):
     """
     Apply KNN search based on coordinates, then concatenate the features to the centroid features
+    k nearest neighbor features is under the centroid
+    feats_cat is like, B x [x_c, y_c, z_C, x_nn, y_nn, z_nn] x N x k
+
     Input:
         X:          [B, 3, N]
         feats:      [B, C, N]
@@ -17,32 +20,32 @@ def get_graph_feature(coords, feats, k=10):
     """
     # apply KNN search to build neighborhood
     B, C, N = feats.size()
-    dist = square_distance(coords.transpose(1,2), coords.transpose(1,2))
+    dist = square_distance(coords.transpose(1, 2), coords.transpose(1, 2))  # [B, N, N] ？
 
-    idx = dist.topk(k=k+1, dim=-1, largest=False, sorted=True)[1]  #[B, N, K+1], here we ignore the smallest element as it's the query itself  
-    idx = idx[:,:,1:]  #[B, N, K]
+    idx = dist.topk(k=k + 1, dim=-1, largest=False, sorted=True)[
+        1]  # [B, N, K+1], 
+    idx = idx[:, :, 1:]  # [B, N, K], here we ignore the smallest element as it's the query itself 
 
-    idx = idx.unsqueeze(1).repeat(1,C,1,1) #[B, C, N, K]
+    idx = idx.unsqueeze(1).repeat(1, C, 1, 1)  # [B, C, N, K]
     all_feats = feats.unsqueeze(2).repeat(1, 1, N, 1)  # [B, C, N, N]
 
-    neighbor_feats = torch.gather(all_feats, dim=-1,index=idx) #[B, C, N, K]
+    neighbor_feats = torch.gather(all_feats, dim=-1, index=idx)  # [B, C, N, K]
 
     # concatenate the features with centroid
-    feats = feats.unsqueeze(-1).repeat(1,1,1,k)
+    feats = feats.unsqueeze(-1).repeat(1, 1, 1, k)  # [B, C, N, K]
 
-    feats_cat = torch.cat((feats, neighbor_feats-feats),dim=1)
+    feats_cat = torch.cat((feats, neighbor_feats - feats), dim=1)
 
     return feats_cat
 
 
-
 class SelfAttention(nn.Module):
-    def __init__(self,feature_dim,k=10):
-        super(SelfAttention, self).__init__() 
-        self.conv1 = nn.Conv2d(feature_dim*2, feature_dim, kernel_size=1, bias=False)
+    def __init__(self, feature_dim, k=10):
+        super(SelfAttention, self).__init__()
+        self.conv1 = nn.Conv2d(feature_dim * 2, feature_dim, kernel_size=1, bias=False)
         self.in1 = nn.InstanceNorm2d(feature_dim)
-        
-        self.conv2 = nn.Conv2d(feature_dim*2, feature_dim * 2, kernel_size=1, bias=False)
+
+        self.conv2 = nn.Conv2d(feature_dim * 2, feature_dim * 2, kernel_size=1, bias=False)
         self.in2 = nn.InstanceNorm2d(feature_dim * 2)
 
         self.conv3 = nn.Conv2d(feature_dim * 4, feature_dim, kernel_size=1, bias=False)
@@ -61,18 +64,18 @@ class SelfAttention(nn.Module):
         """
         B, C, N = features.size()
 
-        x0 = features.unsqueeze(-1)  #[B, C, N, 1]
+        x0 = features.unsqueeze(-1)  # [B, C, N, 1]
 
-        x1 = get_graph_feature(coords, x0.squeeze(-1), self.k)
-        x1 = F.leaky_relu(self.in1(self.conv1(x1)), negative_slope=0.2)
-        x1 = x1.max(dim=-1,keepdim=True)[0]
+        x1 = get_graph_feature(coords, x0.squeeze(-1), self.k)              # [B, 2C, N, k], put k nearest neighbor
+        x1 = F.leaky_relu(self.in1(self.conv1(x1)), negative_slope=0.2)     # [B, C, N, k]
+        x1 = x1.max(dim=-1, keepdim=True)[0]                                # [B, C, N, 1]
 
-        x2 = get_graph_feature(coords, x1.squeeze(-1), self.k)
-        x2 = F.leaky_relu(self.in2(self.conv2(x2)), negative_slope=0.2)
-        x2 = x2.max(dim=-1, keepdim=True)[0]
+        x2 = get_graph_feature(coords, x1.squeeze(-1), self.k)              # [B, 2C, N, k]
+        x2 = F.leaky_relu(self.in2(self.conv2(x2)), negative_slope=0.2)     # [B, 2C, N, k]
+        x2 = x2.max(dim=-1, keepdim=True)[0]                                # [B, 2C, N, 1]
 
-        x3 = torch.cat((x0,x1,x2),dim=1)
-        x3 = F.leaky_relu(self.in3(self.conv3(x3)), negative_slope=0.2).view(B, -1, N)
+        x3 = torch.cat((x0, x1, x2), dim=1)                                             # [B, 4C, N, 1]
+        x3 = F.leaky_relu(self.in3(self.conv3(x3)), negative_slope=0.2).view(B, -1, N)  # [B, C, N]
 
         return x3
 
@@ -84,7 +87,7 @@ def MLP(channels: list, do_bn=True):
     for i in range(1, n):
         layers.append(
             nn.Conv1d(channels[i - 1], channels[i], kernel_size=1, bias=True))
-        if i < (n-1):
+        if i < (n - 1):
             if do_bn:
                 layers.append(nn.InstanceNorm1d(channels[i]))
             layers.append(nn.ReLU())
@@ -93,13 +96,14 @@ def MLP(channels: list, do_bn=True):
 
 def attention(query, key, value):
     dim = query.shape[1]
-    scores = torch.einsum('bdhn,bdhm->bhnm', query, key) / dim**.5
+    scores = torch.einsum('bdhn,bdhm->bhnm', query, key) / dim ** .5
     prob = torch.nn.functional.softmax(scores, dim=-1)
     return torch.einsum('bhnm,bdhm->bdhn', prob, value), prob
 
 
 class MultiHeadedAttention(nn.Module):
     """ Multi-head attention to increase model expressivitiy """
+
     def __init__(self, num_heads: int, d_model: int):
         super().__init__()
         assert d_model % num_heads == 0
@@ -113,14 +117,14 @@ class MultiHeadedAttention(nn.Module):
         query, key, value = [l(x).view(batch_dim, self.dim, self.num_heads, -1)
                              for l, x in zip(self.proj, (query, key, value))]
         x, _ = attention(query, key, value)
-        return self.merge(x.contiguous().view(batch_dim, self.dim*self.num_heads, -1))
+        return self.merge(x.contiguous().view(batch_dim, self.dim * self.num_heads, -1))
 
 
 class AttentionalPropagation(nn.Module):
     def __init__(self, feature_dim: int, num_heads: int):
         super().__init__()
         self.attn = MultiHeadedAttention(num_heads, feature_dim)
-        self.mlp = MLP([feature_dim*2, feature_dim*2, feature_dim])
+        self.mlp = MLP([feature_dim * 2, feature_dim * 2, feature_dim])
         nn.init.constant_(self.mlp[-1].bias, 0.0)
 
     def forward(self, x, source):
@@ -137,14 +141,20 @@ class GCN(nn.Module):
         Output:
             feats:      [B, C, N]
         """
+
     def __init__(self, num_head: int, feature_dim: int, k: int, layer_names: list):
+        # gnn_feats_dim: 256
+        # dgcnn_k: 10
+        # num_head: 4
+        # nets: ['self', 'cross', 'self']
+
         super().__init__()
-        self.layers=[]
+        self.layers = []
         for atten_type in layer_names:
             if atten_type == 'cross':
-                self.layers.append(AttentionalPropagation(feature_dim,num_head))
+                self.layers.append(AttentionalPropagation(feature_dim, num_head))
             elif atten_type == 'self':
-                self.layers.append(SelfAttention(feature_dim, k))
+                self.layers.append(SelfAttention(feature_dim, k))   # output shape [B, C, N]
         self.layers = nn.ModuleList(self.layers)
         self.names = layer_names
 

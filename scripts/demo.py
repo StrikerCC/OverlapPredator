@@ -50,18 +50,18 @@ class ThreeDMatchDemo(Dataset):
         # get pointcloud
         src_pcd, tgt_pcd = None, None
 
-        if config.dataset == 'human':
+        if self.config.dataset == 'human':
             src_pcd = o3d.io.read_point_cloud(self.src_path)
             tgt_pcd = o3d.io.read_point_cloud(self.tgt_path)
             src_pcd = src_pcd.voxel_down_sample(6)
             tgt_pcd = tgt_pcd.voxel_down_sample(6)
             print('Source point cloud', src_pcd)
             print('Target point cloud', tgt_pcd)
-            src_pcd = np.array(src_pcd.points).astype(np.float32) / 1000.0
-            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32) / 1000.0
+            src_pcd = np.array(src_pcd.points).astype(np.float32)
+            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
             # src_pcd = np.array(src_pcd.points).astype(np.float32)
             # tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
-        elif config.dataset == 'indoor':
+        elif self.config.dataset == 'indoor':
             src_pcd = torch.load(self.src_path).astype(np.float32)
             tgt_pcd = torch.load(self.tgt_path).astype(np.float32)
         else:
@@ -159,7 +159,7 @@ def draw_registration_result(src_raw, tgt_raw, src_overlap, tgt_overlap, src_sal
 
 
 def main(config, demo_loader):
-    config.model.eval()
+    config.get_model.eval()
     c_loader_iter = demo_loader.__iter__()
     with torch.no_grad():
         inputs = c_loader_iter.next()
@@ -173,7 +173,7 @@ def main(config, demo_loader):
 
         ###############################################
         # forward pass
-        feats, scores_overlap, scores_saliency = config.model(inputs)  #[N1, C1], [N2, C2]
+        feats, scores_overlap, scores_saliency = config.get_model(inputs)  #[N1, C1], [N2, C2]
         pcd = inputs['points'][0]
         len_src = inputs['stack_lengths'][0][0]
         c_rot, c_trans = inputs['rot'], inputs['trans']

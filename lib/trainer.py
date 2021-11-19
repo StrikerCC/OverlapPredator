@@ -24,7 +24,11 @@ class Trainer(object):
         self.verbose = args.verbose
         self.max_points = args.max_points
 
-        self.model = args.model.to(self.device)
+        '''debugging'''
+        self.model = args.get_model.to(self.device)
+        print(self.model.__repr__())
+        # self.model = args.model
+
         self.optimizer = args.optimizer
         self.scheduler = args.scheduler
         self.scheduler_freq = args.scheduler_freq
@@ -113,6 +117,21 @@ class Trainer(object):
 
     def inference_one_batch(self, inputs, phase):
         assert phase in ['train', 'val', 'test']
+        # print(inputs.keys())
+        '''
+        {'points', 
+        'neighbors', 
+        'pools', 
+        'upsamples', 
+        'features', 
+        'stack_lengths', 
+        'rot', 
+        'trans', 
+        'correspondences', 
+        'src_pcd_raw', 
+        'tgt_pcd_raw', 
+        'sample'}
+        '''
         ##################################
         # training
         if (phase == 'train'):
@@ -192,6 +211,9 @@ class Trainer(object):
                     pass
                 else:
                     inputs[k] = v.to(self.device)
+
+            stats = self.inference_one_batch(inputs, phase)
+
             try:
                 ##################################
                 # forward pass
