@@ -4,7 +4,7 @@ Scripts for pairwise registration demo
 Author: Shengyu Huang
 Last modified: 22.02.2021
 """
-import os, torch, time, shutil, json,glob,sys,copy, argparse
+import os, torch, time, shutil, json, glob, sys, copy, argparse
 import numpy as np
 from easydict import EasyDict as edict
 from torch.utils.data import Dataset
@@ -17,7 +17,7 @@ from datasets.indoor import IndoorDataset
 from datasets.human import HumanDataset
 from datasets.dataloader import get_dataloader
 from models.architectures import KPFCNN
-from lib.utils import load_obj, setup_seed,natural_key, load_config, load_json
+from lib.utils import load_obj, setup_seed, natural_key, load_config, load_json
 from lib.benchmark_utils import ransac_pose_estimation, to_o3d_pcd, get_blue, get_yellow, to_tensor
 
 from configs.models import architectures
@@ -25,6 +25,7 @@ from configs.models import architectures
 from lib.trainer import Trainer
 from lib.loss import MetricLoss
 import shutil
+
 setup_seed(0)
 
 
@@ -37,6 +38,7 @@ class ThreeDMatchDemo(Dataset):
         rot:            [3,3]
         trans:          [3,1]
     """
+
     def __init__(self, config, src_path, tgt_path):
         super(ThreeDMatchDemo, self).__init__()
         self.config = config
@@ -57,8 +59,11 @@ class ThreeDMatchDemo(Dataset):
             tgt_pcd = tgt_pcd.voxel_down_sample(6)
             print('Source point cloud', src_pcd)
             print('Target point cloud', tgt_pcd)
-            src_pcd = np.array(src_pcd.points).astype(np.float32)
-            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
+            src_pcd = np.array(src_pcd.points).astype(np.float32) / 1000.0
+            tgt_pcd = np.array(tgt_pcd.points).astype(np.float32) / 1000.0
+
+            # if len(src_pcd) < 27 or len(tgt_pcd) < 27:
+            #     return None
             # src_pcd = np.array(src_pcd.points).astype(np.float32)
             # tgt_pcd = np.array(tgt_pcd.points).astype(np.float32)
         elif self.config.dataset == 'indoor':
@@ -67,27 +72,27 @@ class ThreeDMatchDemo(Dataset):
         else:
             raise NotImplementedError
 
-        src_feats=np.ones_like(src_pcd[:,:1]).astype(np.float32)
-        tgt_feats=np.ones_like(tgt_pcd[:,:1]).astype(np.float32)
+        src_feats = np.ones_like(src_pcd[:, :1]).astype(np.float32)
+        tgt_feats = np.ones_like(tgt_pcd[:, :1]).astype(np.float32)
 
         # fake the ground truth information
         rot = np.eye(3).astype(np.float32)
-        trans = np.ones((3,1)).astype(np.float32)
-        correspondences = torch.ones(1,2).long()
+        trans = np.ones((3, 1)).astype(np.float32)
+        correspondences = torch.ones(1, 2).long()
 
         # vis to confirm
         src_pcd_o3 = to_o3d_pcd(src_pcd)
         src_tgt_o3 = to_o3d_pcd(tgt_pcd)
         o3d.visualization.draw_geometries([src_pcd_o3, src_tgt_o3])
 
-        return src_pcd,tgt_pcd,src_feats,tgt_feats,rot,trans, correspondences, src_pcd, tgt_pcd, torch.ones(1)
+        return src_pcd, tgt_pcd, src_feats, tgt_feats, rot, trans, correspondences, src_pcd, tgt_pcd, torch.ones(1)
 
 
 def lighter(color, percent):
     '''assumes color is rgb between (0, 0, 0) and (1,1,1)'''
     color = np.array(color)
     white = np.array([1, 1, 1])
-    vector = white-color
+    vector = white - color
     return color + vector * percent
 
 
@@ -103,9 +108,9 @@ def draw_registration_result(src_raw, tgt_raw, src_overlap, tgt_overlap, src_sal
 
     ########################################
     # 2. overlap colors
-    rot, trans = to_tensor(tsfm[:3,:3]), to_tensor(tsfm[:3,3][:,None])
-    src_overlap = src_overlap[:,None].repeat(1,3).numpy()
-    tgt_overlap = tgt_overlap[:,None].repeat(1,3).numpy()
+    rot, trans = to_tensor(tsfm[:3, :3]), to_tensor(tsfm[:3, 3][:, None])
+    src_overlap = src_overlap[:, None].repeat(1, 3).numpy()
+    tgt_overlap = tgt_overlap[:, None].repeat(1, 3).numpy()
     src_overlap_color = lighter(get_yellow(), 1 - src_overlap)
     tgt_overlap_color = lighter(get_blue(), 1 - tgt_overlap)
     src_pcd_overlap = copy.deepcopy(src_pcd_before)
@@ -130,10 +135,10 @@ def draw_registration_result(src_raw, tgt_raw, src_overlap, tgt_overlap, src_sal
     vis2.add_geometry(tgt_pcd_overlap)
 
     vis3 = o3d.visualization.Visualizer()
-    vis3.create_window(window_name ='Our registration', width=960, height=540, left=960, top=0)
+    vis3.create_window(window_name='Our registration', width=960, height=540, left=960, top=0)
     vis3.add_geometry(src_pcd_after)
     vis3.add_geometry(tgt_pcd_before)
-    
+
     while True:
         vis1.update_geometry(src_pcd_before)
         vis3.update_geometry(tgt_pcd_before)
@@ -155,7 +160,7 @@ def draw_registration_result(src_raw, tgt_raw, src_overlap, tgt_overlap, src_sal
 
     vis1.destroy_window()
     vis2.destroy_window()
-    vis3.destroy_window()    
+    vis3.destroy_window()
 
 
 def main(config, demo_loader):
@@ -165,7 +170,7 @@ def main(config, demo_loader):
         inputs = c_loader_iter.next()
         ##################################
         # load inputs to device.
-        for k, v in inputs.items():  
+        for k, v in inputs.items():
             if type(v) == list:
                 inputs[k] = [item.to(config.device) for item in v]
             else:
@@ -173,12 +178,12 @@ def main(config, demo_loader):
 
         ###############################################
         # forward pass
-        feats, scores_overlap, scores_saliency = config.get_model(inputs)  #[N1, C1], [N2, C2]
+        feats, scores_overlap, scores_saliency = config.get_model(inputs)  # [N1, C1], [N2, C2]
         pcd = inputs['points'][0]
         len_src = inputs['stack_lengths'][0][0]
         c_rot, c_trans = inputs['rot'], inputs['trans']
         correspondence = inputs['correspondences']
-        
+
         src_pcd, tgt_pcd = pcd[:len_src], pcd[len_src:]
         src_raw = copy.deepcopy(src_pcd)
         tgt_raw = copy.deepcopy(tgt_pcd)
@@ -191,15 +196,15 @@ def main(config, demo_loader):
         src_scores = src_overlap * src_saliency
         tgt_scores = tgt_overlap * tgt_saliency
 
-        if(src_pcd.size(0) > config.n_points):
+        if (src_pcd.size(0) > config.n_points):
             idx = np.arange(src_pcd.size(0))
             probs = (src_scores / src_scores.sum()).numpy().flatten()
-            idx = np.random.choice(idx, size= config.n_points, replace=False, p=probs)
+            idx = np.random.choice(idx, size=config.n_points, replace=False, p=probs)
             src_pcd, src_feats = src_pcd[idx], src_feats[idx]
-        if(tgt_pcd.size(0) > config.n_points):
+        if (tgt_pcd.size(0) > config.n_points):
             idx = np.arange(tgt_pcd.size(0))
             probs = (tgt_scores / tgt_scores.sum()).numpy().flatten()
-            idx = np.random.choice(idx, size= config.n_points, replace=False, p=probs)
+            idx = np.random.choice(idx, size=config.n_points, replace=False, p=probs)
             tgt_pcd, tgt_feats = tgt_pcd[idx], tgt_feats[idx]
 
         ########################################
@@ -211,7 +216,7 @@ def main(config, demo_loader):
 if __name__ == '__main__':
     # load configs
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', type=str, help= 'Path to the config file.')
+    parser.add_argument('config', type=str, help='Path to the config file.')
     args = parser.parse_args()
     config = load_config(args.config)
     config = edict(config)
@@ -219,7 +224,7 @@ if __name__ == '__main__':
         config.device = torch.device('cuda')
     else:
         config.device = torch.device('cpu')
-    
+
     # model initialization
     # config.architecture = [
     #     'simple',
@@ -236,7 +241,7 @@ if __name__ == '__main__':
     # config.architecture.append('last_unary')
     config.architecture = architectures[config.dataset]
     config.model = KPFCNN(config).to(config.device)
-    
+
     # create dataset and dataloader
     info_train, train_set = None, None
     if config.dataset == 'human':

@@ -21,3 +21,5 @@ dump/
 
 /kernels
 /common
+
+*.ply
